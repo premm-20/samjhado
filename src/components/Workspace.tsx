@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO_LESSON } from "@/lib/demoLesson";
 import type { BookContext, Lesson, LessonRequest, Step } from "@/lib/types";
 import type { YtSource } from "@/lib/youtube";
+import { getProfileId, learnerFor, scoped, setProfileId } from "@/lib/profiles";
 import { repoTopicKey, type RepoSource } from "@/lib/github";
 import { setRepoTree } from "@/lib/repoStore";
 import { friendlyError } from "@/lib/errors";
@@ -32,6 +33,7 @@ import { getVoice, setVoice, VOICES } from "@/lib/voice";
 import { Composer, type ComposerMode } from "./Composer";
 import { Landing, Logo } from "./Landing";
 import { NotesPanel } from "./NotesPanel";
+import { ProfilePicker } from "./ProfilePicker";
 import type { Anchor, ExplainHow, NextTopic } from "./PdfPane";
 import { IconBtn } from "./ui";
 
@@ -40,10 +42,11 @@ const VideoPane = dynamic(() => import("./VideoPane"), { ssr: false });
 const RepoPane = dynamic(() => import("./RepoPane"), { ssr: false });
 
 /** Saved progress per YouTube course/video so later classes can recall earlier ones. */
-const ytStoreKey = (id: string) => `samjhado:yt:${id}`;
+// Progress is saved per learner; Prem also picks up anything saved before profiles existed.
+const ytStoreKey = (id: string) => scoped(getProfileId(), `yt:${id}`);
 function loadYtProgress(id: string): { memory: string[]; done: string[] } {
   try {
-    const raw = localStorage.getItem(ytStoreKey(id));
+    const raw = localStorage.getItem(ytStoreKey(id)) ?? (getProfileId() === "prem" ? localStorage.getItem(`samjhado:yt:${id}`) : null);
     if (raw) return JSON.parse(raw);
   } catch {}
   return { memory: [], done: [] };
@@ -113,6 +116,8 @@ async function streamLessonRequest(body: LessonRequest, onUpdate: (lesson: Lesso
 
 export default function Workspace() {
   const [view, setView] = useState<"landing" | "workspace">("landing");
+  // Who is learning. The workspace only renders on the client, so localStorage is safe here.
+  const [profileId, setProfileIdState] = useState(() => (typeof window === "undefined" ? "prem" : getProfileId()));
   const [file, setFile] = useState<File | null>(null);
   const [yt, setYt] = useState<YtSource | null>(null);
   const [gh, setGh] = useState<RepoSource | null>(null);
@@ -201,7 +206,7 @@ export default function Workspace() {
         // Courses remember more history so a later class can recall earlier ones.
         let started = false;
         const lesson = await streamLessonRequest(
-          { mode: "lesson", bookTitle, context: ctx, instruction, memory: memory.slice(ctx.video || ctx.repo ? -12 : -8) },
+          { mode: "lesson", bookTitle, context: ctx, instruction, memory: memory.slice(ctx.video || ctx.repo ? -12 : -8), learner: learnerFor(profileId) },
           (l, final) => {
             setMain(l);
             setMainStreaming(!final);
@@ -239,7 +244,7 @@ export default function Workspace() {
         interruptedRef.current = false;
       }
     },
-    [bookTitle, memory],
+    [bookTitle, memory, profileId],
   );
 
   const askDoubt = useCallback(
@@ -259,6 +264,7 @@ export default function Workspace() {
             instruction: question,
             memory,
             mainLesson: { title: main.title, boardSoFar: snap?.boardSoFar ?? [], currentSay: snap?.currentSay ?? "" },
+            learner: learnerFor(profileId),
           },
           (l, final) => {
             setDoubt({ lesson: l, question });
@@ -279,7 +285,7 @@ export default function Workspace() {
         setDoubtStreaming(false);
       }
     },
-    [main, context, bookTitle, memory],
+    [main, context, bookTitle, memory, profileId],
   );
 
   const closeDoubt = useCallback(() => {
@@ -420,6 +426,30 @@ export default function Workspace() {
     else if (gh) saveYtProgress(`gh:${gh.owner}/${gh.repo}`, memory, [...done]);
   }, [yt, gh, memory, done]);
 
+  // Switch learner: everything personal (progress, memory, notes, voice) follows the person.
+  const switchProfile = (id: string) => {
+    if (id === profileId) return;
+    setProfileId(id);
+    setProfileIdState(id);
+    setVoiceName(getVoice());
+    setNotebook([]);
+    setMain(null);
+    setDoubt(null);
+    setLessonCtx(null);
+    if (yt) {
+      const saved = loadYtProgress(yt.id);
+      setMemory(saved.memory);
+      setDone(new Set(saved.done));
+    } else if (gh) {
+      const saved = loadYtProgress(`gh:${gh.owner}/${gh.repo}`);
+      setMemory(saved.memory);
+      setDone(new Set(saved.done));
+    } else {
+      setMemory([]);
+      setDone(new Set());
+    }
+  };
+
   const pickRepo = (src: RepoSource) => {
     const saved = loadYtProgress(`gh:${src.owner}/${src.repo}`);
     setLessonCtx(null);
@@ -473,6 +503,8 @@ export default function Workspace() {
         onFile={pickFile}
         onYoutube={pickYoutube}
         onRepo={pickRepo}
+        profileId={profileId}
+        onProfile={switchProfile}
         onDemo={() => {
           setView("workspace");
           setMain(DEMO_LESSON);
@@ -501,6 +533,7 @@ export default function Workspace() {
         <div className="h-5 w-px bg-white/10" />
         <p className="min-w-0 truncate text-sm text-white/60">{bookTitle || "Demo lesson"}</p>
         <div className="flex-1" />
+        <ProfilePicker value={profileId} onChange={switchProfile} compact />
         {memory.length ? (
           <span className="hidden rounded-full border border-white/10 px-2.5 py-1 text-xs text-white/45 md:inline" title={memory.join("\n")}>
             Memory · {memory.length} topic{memory.length > 1 ? "s" : ""}

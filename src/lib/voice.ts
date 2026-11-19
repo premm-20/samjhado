@@ -1,4 +1,5 @@
 "use client";
+import { getProfileId, scoped } from "./profiles";
 // Teacher voice for one board.
 // Gemini's free tier allows only a few TTS requests per minute, so narration is fetched
 // in at most two chunks per lesson (first two steps, then the rest). Each chunk's audio is
@@ -28,17 +29,17 @@ export const VOICES = [
   { id: "Despina", label: "Despina · smooth" },
   { id: "Aoede", label: "Aoede · bright" },
 ] as const;
-const VOICE_KEY = "samjhado:voice";
+const voiceKey = () => scoped(getProfileId(), "voice");
 export function getVoice(): string {
   try {
-    const v = localStorage.getItem(VOICE_KEY);
+    const v = localStorage.getItem(voiceKey()) ?? localStorage.getItem("samjhado:voice");
     if (v && VOICES.some((x) => x.id === v)) return v;
   } catch {}
   return "Sulafat";
 }
 export function setVoice(v: string) {
   try {
-    localStorage.setItem(VOICE_KEY, v);
+    localStorage.setItem(voiceKey(), v);
   } catch {}
 }
 

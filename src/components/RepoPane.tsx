@@ -6,6 +6,7 @@ import { completeListing, entryFiles, isReadable, mainFolders, repoPhases, treeT
 import type { BookContext } from "@/lib/types";
 import type { Anchor, ExplainHow, NextTopic } from "./PdfPane";
 import { setLiveUrl } from "@/lib/repoStore";
+import { getProfileId, scoped } from "@/lib/profiles";
 
 interface Props {
   source: RepoSource;
@@ -84,7 +85,7 @@ export default function RepoPane({ source, onExplain, activeKey, done, registerN
   const ctxBase = { owner: source.owner, repo: source.repo, branch: source.branch };
 
   // Optional: where the learner is running this project, so lessons can point at the live feature.
-  const liveKey = `samjhado:live:${source.owner}/${source.repo}`;
+  const liveKey = scoped(getProfileId(), `live:${source.owner}/${source.repo}`);
   const [live, setLive] = useState(() => {
     try {
       return localStorage.getItem(liveKey) ?? "";

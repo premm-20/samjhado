@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { ArrowRight, Hand, Loader2, Maximize2, MessageCircleQuestion, Mic, MousePointerClick, PlayCircle, Upload } from "lucide-react";
 import type { YtSource } from "@/lib/youtube";
 import { parseGitHubUrl, type RepoSource } from "@/lib/github";
+import { ProfilePicker } from "./ProfilePicker";
 import { friendlyError } from "@/lib/errors";
 import { useState } from "react";
 
@@ -28,11 +29,15 @@ export function Landing({
   onDemo,
   onYoutube,
   onRepo,
+  profileId,
+  onProfile,
 }: {
   onFile: (f: File) => void;
   onDemo: () => void;
   onYoutube: (s: YtSource) => void;
   onRepo: (s: RepoSource) => void;
+  profileId: string;
+  onProfile: (id: string) => void;
 }) {
   const [over, setOver] = useState(false);
   const [ytUrl, setYtUrl] = useState("");
@@ -80,7 +85,7 @@ export function Landing({
 
       <nav className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <Logo />
-        <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/50">Phase 1 · Beta</span>
+        <ProfilePicker value={profileId} onChange={onProfile} />
       </nav>
 
       <section className="relative z-10 mx-auto grid max-w-6xl items-center gap-12 px-6 pb-16 pt-8 lg:grid-cols-[1.05fr_1fr] lg:pt-14">

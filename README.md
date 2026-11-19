@@ -22,6 +22,13 @@ npm run dev
 
 Open http://localhost:3000. "Demo lesson dekho" works without a key.
 
+## Learners: Aarohi & Prem
+
+- Pick who is learning on the home page ("Kaun padh raha hai?") or in the top bar.
+- Each learner has their own course progress, memory, voice choice and live-app URL (saved in the browser). Switching learner switches all of it.
+- The teacher addresses the learner by name a couple of times per lesson.
+- Teaching style: `src/lib/profiles.ts`. `SHARED_INSTRUCTIONS` applies to both; add anything person-specific to that learner’s `extra` (empty today, so both are taught the same way).
+
 ## How it works
 
 - **Highlight → Samjhao.** Select text and a single **Samjhao →** pill grows out of it. Click it: the text stays marked in the book, an arrow stretches to the board, and the lesson starts. The selection also lands in the composer, so you can type or speak a specific instruction instead. Pages have "Is page ko samjhao"; chapters in Contents have "Select".

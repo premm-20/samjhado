@@ -153,4 +153,6 @@ export interface LessonRequest {
   memory: string[];
   /** doubt mode: what the main lesson is about and where it was paused. */
   mainLesson?: { title: string; boardSoFar: string[]; currentSay: string };
+  /** Who is learning (Aarohi / Prem) and their teaching instructions. */
+  learner?: { name: string; instructions: string };
 }

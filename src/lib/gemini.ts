@@ -191,6 +191,11 @@ function looksNumerical(req: LessonRequest): boolean {
 function buildUserPrompt(req: LessonRequest): string {
   const ctx = req.context;
   const parts: string[] = [];
+  if (req.learner?.name)
+    parts.push(
+      `LEARNER: ${req.learner.name}. Talk to ${req.learner.name} directly and warmly, using the name only 2-3 times in the WHOLE lesson (in the first step, the last step, and at most once in between, e.g. "Dekho ${req.learner.name}, ..."). In all other steps do not use the name.` +
+        (req.learner.instructions ? `\nTEACHING PREFERENCES FOR THIS LEARNER: ${req.learner.instructions}` : ""),
+    );
   parts.push(`Book: ${req.bookTitle || "Untitled"}`);
   if (req.memory.length) {
     parts.push(`Previously taught in this session:\n${req.memory.map((m) => `- ${m}`).join("\n")}`);
@@ -248,7 +253,7 @@ YOUR JOB: re-teach this class completely, from the first minute of the segment t
       entry:
         "Explain HOW THE APP RUNS: the entry point(s) (which file starts everything), dependencies/config files, and the request/data flow from start to end. Use a diagram for the flow and short code steps only for the key lines of the entry files.",
       area: `This is the OVERVIEW of the folder (every file inside gets its own detailed lesson next). Explain the \"${r.folder}\" part of the project: what this area is responsible for, its files (with a "tree" step), how its files work together, and how it connects to the rest of the project. Mention the key functions/components by name. Keep code to the most important lines.`,
-      file: `Explain the single file \"${r.file}\" COMPLETELY. FIRST a plain-language summary: what this file does, why it exists, which feature of the app it powers, and where it fits (who calls it, what it calls). THEN walk through the WHOLE file from the first line to the last, in order, one "code" step per logical block (imports, each function, each class/method, each section, the main block). The file is given WITH LINE NUMBERS ("39| def spec_of..."): for every code step set startLine and endLine of that block (inclusive) and leave code empty; the app shows the exact real lines. Do not skip any function or block: if a FILE OUTLINE is given, every listed function/class gets its own code step in that order; for a long file use more steps (up to 30). In say explain each block: what it does, why, inputs/outputs, and which visible feature it affects. End with how this file connects to the rest.`,
+      file: `Explain the single file \"${r.file}\" COMPLETELY. FIRST a plain-language summary: what this file does, why it exists, which feature of the app it powers, and where it fits (who calls it, what it calls). THEN walk through the WHOLE file from the first line to the last, in order, one "code" step per logical block (imports, each function, each class/method, each section, the main block). The file is given WITH LINE NUMBERS ("39| def spec_of..."): for every code step set startLine and endLine of that block (inclusive) and leave code empty; the app shows the exact real lines. Do not skip any function or block: if a FILE OUTLINE is given, every listed function/class gets its own code step in that order; for a long file use more steps (up to 30). In say explain each block AS A WHOLE, never line by line: what the block achieves, how it works in plain words (the idea, not a narration of each statement), its inputs and outputs, and which visible feature it affects. Start the lesson with a diagram of how this file connects to the rest (who calls it, what it calls, data in/out). End with a short recap of the file's contribution.`,
     };
     parts.push(
       `SOURCE: the GitHub repository ${r.owner}/${r.repo} (branch ${r.branch}).${where} Topic: "${r.title}".` +
@@ -782,6 +787,7 @@ export async function generateLesson(req: LessonRequest): Promise<Lesson> {
   // Retry overloads / quota / timeouts on the next model in the chain.
   let res: Response | null = null;
   let used = models[0];
+  const isVideoSource = req.mode === "lesson" && !!req.context.video;
   for (let a = 0; a < models.length; a++) {
     used = models[a];
     try {
@@ -795,10 +801,19 @@ export async function generateLesson(req: LessonRequest): Promise<Lesson> {
       res = null; // timed out: try the next model
       continue;
     }
-    if (res.ok || ![429, 500, 503, 504].includes(res.status)) break;
-    await new Promise((r) => setTimeout(r, 800 * (a + 1)));
+    if (res.ok) break;
+    // Some models refuse very long YouTube videos (400 "invalid argument") while others accept
+    // them, so for video lessons a 400 also moves on to the next model.
+    const retryable = [429, 500, 503, 504].includes(res.status) || (isVideoSource && res.status === 400);
+    if (!retryable || a === models.length - 1) break;
+    if (res.status !== 400) await new Promise((r) => setTimeout(r, 800 * (a + 1)));
   }
   if (!res) throw new GeminiError("Gemini is too busy right now (timed out). Try again in a minute.", 504);
+  if (!res.ok && res.status === 400 && isVideoSource)
+    throw new GeminiError(
+      "Gemini is video ko process nahi kar pa raha (koi bhi model accept nahi kar raha — video bahut lambi ya restricted ho sakti hai). Thodi der baad try karo, ya isi course ki chhoti video try karo.",
+      400,
+    );
   return parseLessonResponse(res, used, req);
 }
 

@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   }
   body.instruction = String(body.instruction ?? "").slice(0, 1000);
   // Courses send up to 12 earlier-class summaries so later classes can recall them.
+  if (body.learner) body.learner = { name: String(body.learner.name ?? "").slice(0, 40), instructions: String(body.learner.instructions ?? "").slice(0, 2000) };
   body.memory = Array.isArray(body.memory) ? body.memory.slice(-12).map((m) => String(m).slice(0, 400)) : [];
 
   // Streaming: one JSON event per line, steps sent as soon as Gemini writes them.
